@@ -1,11 +1,7 @@
 import 'dart:io';
-import 'package:advance_pdf_viewer/advance_pdf_viewer.dart';
-//import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:file_picker/file_picker.dart';
-import 'package:pdf_compressor/pdf_compressor.dart';
 import 'package:flutter/material.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,14 +32,14 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
 
 var msg='';
-final new_pdf = new pw.Document();
-List <pw.MemoryImage> all_pages = [];
+var new_pdf = new PdfDocument();
+final double height = PdfPageSize.a4.height.toDouble();
+final double width = PdfPageSize.a4.width.toDouble();
 int new_pages = 0;
 var num_pages=0;
 
 TextEditingController c1 = new TextEditingController();
 TextEditingController c2 = new TextEditingController();
-
 
 get_img(int index)async
 {
@@ -52,9 +48,12 @@ get_img(int index)async
   });
   final add_img = await FilePicker.platform.pickFiles(type: FileType.image);
     final el = add_img.files.first.path;
-    final sr=await File(el).readAsBytes();
-    final add_img_file = pw.MemoryImage(sr);
-    all_pages.insert(index,add_img_file);
+    final sr= File(el).readAsBytesSync();
+    final add_img_file = PdfBitmap(sr);
+    new_pdf.pages.insert(index);
+    final edit= new_pdf.pages[index];
+    final c =Offset.zero;
+    edit.graphics.drawImage(add_img_file, Rect.fromLTWH(0, 0,new_pdf.pages[0].getClientSize().width ,new_pdf.pages[0].getClientSize().height));
   setState(() {
     isLoading=false;
   });
@@ -62,50 +61,15 @@ get_img(int index)async
 
 
 save()async{
- for(var i=0;i<all_pages.length;i++){
-              await  new_pdf.addPage(pw.Page(build: (pw.Context c){
-                         return pw.Center(child: pw.Image(all_pages[i]));
-                       }));
-                } 
+ setState(() {
+                  msg='Downloading...';
+                });
+                
   final pat = await getExternalStorageDirectory();
-                var l= pat.path.split('/');
-                // var final_path='';
-                // for (var element in l){
-                //   if(element!='Android')
-                //     {
-                //       final_path+=element+'/';
-                //     }
-                //     else if(element=='Android'){
-                //       break;
-                //     }
-                // }
-                //   final_path+='Download';
-                //   final temp_path =pat.path+'/${DateTime.now().millisecondsSinceEpoch.ceil()}.pdf';
-                //   if(c1.text=='')
-                //   {
-                //     final_path+='/${DateTime.now().millisecondsSinceEpoch}.pdf';
-                //   }
-                //   else{
-                //     final_path+='/${c1.text}.pdf';
-                //   }
-
-             var temp_path = pat.path+'/${DateTime.now().millisecondsSinceEpoch.ceil()}.pdf';
-            var final_path = c1.text==''?'/${DateTime.now().microsecondsSinceEpoch}s.pdf':'/${c1.text}.pdf';
-                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("creating...."),));
-                  await File(temp_path).writeAsBytes(await new_pdf.save());
-                  setState(() {
-                  msg='compressing...';
-                });
-                 // ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("compressing..."),));
-                 await PdfCompressor.compressPdfFile(temp_path, '${pat.path}/$final_path', CompressQuality.HIGH);
-                  setState(() {
-                  msg='deleting cache...';
-                });
-              //    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("deleting cache...."),));
-                await File(temp_path).deleteSync(recursive: true);
-                  print("compresses");
-                  all_pages.clear();print(all_pages.length);
-                  setState(() {
+            var final_path = c1.text==''?'${DateTime.now().microsecondsSinceEpoch}s.pdf':'${c1.text}.pdf';
+                // ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("creating...."),));
+                  await File('${pat.path}/${final_path}').writeAsBytes(new_pdf.save());
+                    setState(() {
                     isLoading=false;
                   });
 }
@@ -140,57 +104,46 @@ bool isLoading=false;
             setState(() {
               isLoading=true;
             });
-          final images = await FilePicker.platform.pickFiles(type: FileType.image);  
-       // final images = await ImagePicker.platform.pickImage(source: ImageSource.gallery);
-        final pdf = pw.Document(); 
-       // final im = File(images.path);
-
-
+          final images = await FilePicker.platform.pickFiles(type: FileType.image,allowMultiple: true);  
+          final pdf = PdfDocument();
+          pdf.pageSettings.setMargins(0);
           if(images!=null)
             {
-              images.files.forEach((element) async { 
-                   var final_path ='';
-                 final i = element.path;
-                final image = pw.MemoryImage(
+              images.files.forEach((element) async
+              { 
+                var final_path ='';
+                final i = element.path;
+                final image = PdfBitmap(
                   File(i).readAsBytesSync(),
                 );
-              await  pdf.addPage(pw.Page(build: (pw.Context context) {
-                    return pw.Center(child: pw.Image(image));
-                     }));
-                 final pat = await getExternalStorageDirectory();
-                 var l= pat.path.split('/');
-                for (var element in l){
-                  if(element!='Android')
-                    {
-                      final_path+=element+'/';
-                    }
-                    else if(element=='Android'){
-                      break;
-                    }
-                }
-                  final_path+='Download';
+                final new_ =pdf.pages.add();
+                new_.graphics.drawImage(image, Rect.fromLTWH(10,10, pdf.pages[0].getClientSize().width,pdf.pages[0].getClientSize().height));
+            }); final pat = await getExternalStorageDirectory();
                   try{
-                  final file = c1.text==''?File("${pat.path}/${DateTime.now().millisecondsSinceEpoch.ceil()}.pdf"):File("${pat.path}/${c1.text}.pdf");
-                  await file.writeAsBytes(await pdf.save());
-                  setState(() {
-                    isLoading=false;
-                  });
+                    final file = c1.text==''?File("${pat.path}/${DateTime.now().millisecondsSinceEpoch.ceil()}.pdf"):File("${pat.path}/${c1.text}.pdf");
+                    await file.writeAsBytes(pdf.save());
+                    setState(() {
+                      isLoading=false;
+                    });
                   }catch(e)
                   { 
-                  setState(() {
-                    isLoading=false;
-                  });  
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("error ${e.toString()}"),));
-                  print(e.toString());
-                
-                  }
+                    setState(() {
+                      isLoading=false;
+                    });  
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("error ${e.toString()}"),));
+                    print(e.toString());
+                    pdf.dispose();
                   
-                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("saved to ${pat.path}"),));
-            }
-              );
-            }
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("saved to ${pat.path}"),));
+                  pdf.dispose();
+              }
             else{
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("something is wrong"),));       
+              setState(() {
+                isLoading= false;
+              });
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("something is wrong"),));   
+                pdf.dispose();    
             }
             
             },),
@@ -200,32 +153,25 @@ bool isLoading=false;
                 isLoading=true;
                 msg='getting pdf';
               });
-              try{
-                final file = await FilePicker.platform.pickFiles(type: FileType.custom,allowedExtensions:['pdf'],);
-                setState(() {
-                   msg='1';
-                 });
-                final f =File(file.paths.first);
-                setState(() {
-                   msg='2';
-                 });
-                 //final PdfDocument doc = PdfDocument(inputBytes: f.readAsBytesSync());
-               PDFDocument doc = await PDFDocument.fromFile(f);
-                 num_pages = doc.count;
+               try{
+                final file = await FilePicker.platform.pickFiles(type: FileType.custom,allowedExtensions:['pdf'],allowMultiple: false);
+                if(file!=null)
+                {
+                
+                final f = File(file.files.first.path);
+               
+                new_pdf = PdfDocument(inputBytes: f.readAsBytesSync());
+                new_pdf.pageSettings.setMargins(0);
+                num_pages = new_pdf.pages.count;
                  setState(() {
                    msg='number of pages $num_pages';
-                 });
+                 });              
                 print("num $num_pages");
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$num_pages"),));
-                for(var i=1;i<=num_pages;i++)
-                {
-                //  PDFPage page = await doc.get(page: i, );
-                  final im = pw.MemoryImage( await File(page.imgPath,).readAsBytes());
-                  all_pages.add(im);
+                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$num_pages"),));
                 }
-                 setState(() {
+                setState(() {
                     isLoading=false;
-                  });
+                });
               }catch(e)
               {
                 setState(() {
@@ -233,7 +179,6 @@ bool isLoading=false;
                 });
                 print("error manual"+e.toString());
                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${e.toString()}"),));
-               
               }
               
      }, child: Text("select PDF to edit")),
@@ -249,11 +194,14 @@ bool isLoading=false;
        });
     try{
       final at =int.parse(c2.text);
-      final index = at>0&&at<num_pages+2?at-1:0;
-      await get_img(index);
+      final index = at>0&&at<num_pages+1?at:1;
+      await get_img(index-1);
     }
     catch(e)
     {
+      setState(() {
+        isLoading=false;
+      });
       print(e.toString());
     }
       c2.clear();
@@ -268,19 +216,44 @@ bool isLoading=false;
          isLoading=true;
          msg ='generating pdf';
        });
-       try{
-         await save();
+         
+      try{
+        await save();
         }catch(e){
+          setState(() {
+            isLoading=false;
+          });
          print(e.toString());
        }
       setState(() {
         new_pages=0;
         isLoading=false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Saved in downloads"),));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Saved"),));
      }, child: Text("Generate")),
 
-     Text("new pages $new_pages"),
+     ElevatedButton(onPressed: ()async{
+      try{ 
+        setState(() {
+          isLoading=true;
+        });
+        new_pdf.pages.removeAt(int.parse(c2.text));
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Removed ${c2.text} page"),));
+           setState(() {
+             isLoading=false;
+             num_pages--;
+           });
+        }
+      catch(e)
+      {
+        setState(() {
+          isLoading=false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${e.toString()}"),));
+      }
+     }, child: Text('Remove Page')),
+
+      Text("new pages $new_pages"),
           ]),
       
       )
